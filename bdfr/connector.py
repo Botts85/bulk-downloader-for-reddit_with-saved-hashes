@@ -509,8 +509,7 @@ class RedditConnector(metaclass=ABCMeta):
             url_list = {}
     
         logger.info(f"Calculating hashes for {len(files)} new files")
-        # Use 8 simultaneous threads to calculate hashes.
-        pool = Pool(8)
+        pool = Pool(15)
         results = pool.map(_calc_hash, files)
         pool.close()
         # Build dictionaries from the hash calculations.    
