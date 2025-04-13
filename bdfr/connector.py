@@ -489,36 +489,43 @@ class RedditConnector(metaclass=ABCMeta):
     @staticmethod
     def scan_existing_files(directory: Path, keep_hashes: bool) -> (dict[str, Path], dict[str, str], dict[str, str]):
         if keep_hashes:
+            # If keep_hashes is True, load previously stored hash data.
             (hash_list_loaded, filename_list_loaded, url_list) = RedditConnector._load_hash_list(directory)
+        
         files = []
         for (dirpath, _dirnames, filenames) in os.walk(directory):
             files.extend([Path(dirpath, file) for file in filenames])
+        
         if keep_hashes:
-            files_new = list()
+            # Filter out files that are already present in the loaded filename list
+            files_new = []
             for file in files:
                 if str(file) not in filename_list_loaded:
                     files_new.append(file)
-            files = []
-            files.extend(files_new)
-        logger.info(f"Calculating hashes for {len(files)} files")
-
+            files = files_new
+        else:
+            # Initialize the hash, filename, and URL lists as empty dictionaries. 
+            # This ensures that all files in the directory are processed as if they were new.
+            hash_list_loaded = {}
+            filename_list_loaded = {}
+            url_list = {}
+    
+        logger.info(f"Calculating hashes for {len(files)} new files")
         pool = Pool(15)
         results = pool.map(_calc_hash, files)
         pool.close()
-
+        # Build dictionaries from the hash calculations.    
         hash_list = {res[1]: res[0] for res in results}
-        filename_list = {}
+        filename_list = {str(res[0]): res[1] for res in results}
+    
         if keep_hashes:
-            filename_list = {str(res[0]): res[1] for res in results}
+            # Merge new computed hashes with the previously stored data.
             filename_list_loaded.update(filename_list)
-            filename_list = filename_list_loaded
             hash_list_loaded.update(hash_list)
-            hash_list = hash_list_loaded
-            if len(files_new) > 0:
-                RedditConnector._save_hash_list(directory, hash_list, filename_list, url_list)
-        else:
-            url_list = {}
-        return (hash_list, filename_list, url_list)
+            # Save the updated hash, filename, and URL lists to disk
+            RedditConnector._save_hash_list(directory, hash_list_loaded, filename_list_loaded, url_list)
+        
+        return (hash_list_loaded, filename_list_loaded, url_list)
 
     @staticmethod
     def _load_hash_list(directory: Path) -> (dict[str, Path], dict[str, str], dict[str, str]):
